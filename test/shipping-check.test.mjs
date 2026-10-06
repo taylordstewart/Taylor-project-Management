@@ -112,7 +112,7 @@ test('does not flag when no status is list-needed', () => {
 
 test('skips missing / unparseable ship dates on non-calling cards', () => {
   const st = { '61f1792a343a8d30c6b83d3a': 's1-pq' };
-  assert.equal(evaluateCard(card(undefined, st, ['Hand Posting']), { fieldMeta, today }).reason, 'missing ship date');
+  assert.equal(evaluateCard(card(undefined, st, ['Mailer']), { fieldMeta, today }).reason, 'missing ship date');
   assert.equal(evaluateCard(card(undefined, st), { fieldMeta, today }).reason, 'missing ship date');
   assert.equal(evaluateCard(card('TBD', st, ['Calling Project']), { fieldMeta, today }).reason, 'unparseable ship date');
 });
@@ -127,14 +127,14 @@ test('flags blank ship date only on Calling Project cards with list needed', () 
   assert.equal(evaluateCard(card(undefined, { '61f1792a343a8d30c6b83d3a': 's1-live' }, ['Calling Project']), { fieldMeta, today }).outcome, 'skipped');
 });
 
-test('flags ASAP ship date when not yet shipped (any card type, any list status)', () => {
+test('flags ASAP ship date when not yet shipped (any list status)', () => {
   const st = { '61f179492f9bdf409cffe64c': 's2-pq' };
-  const r = evaluateCard(card('ASAP', st, ['Hand Posting']), { fieldMeta, today });
+  const r = evaluateCard(card('ASAP', st, ['Mailer']), { fieldMeta, today });
   assert.equal(r.outcome, 'flagged');
   assert.equal(r.reason, 'asap');
   assert.equal(evaluateCard(card('asap!!', st), { fieldMeta, today }).reason, 'asap');
   // ASAP with the list already in (status LIVE) is still flagged — it hasn't shipped
-  const live = evaluateCard(card('ASAP', { '61f1792a343a8d30c6b83d3a': 's1-live' }, ['Hand Posting']), { fieldMeta, today });
+  const live = evaluateCard(card('ASAP', { '61f1792a343a8d30c6b83d3a': 's1-live' }, ['Mailer']), { fieldMeta, today });
   assert.equal(live.reason, 'asap');
   assert.equal(live.neededStatuses.length, 0);
   assert.match(buildDigest([{ job: 'FLDH-0032A', url: 'u', listName: 'L', ...live }], today).description, /list in — no Actual Ship Date yet/);
@@ -212,4 +212,14 @@ test('countdown wording and target countdown in timing text', () => {
   assert.match(timingText(r), /target ship Thu 10\/8\/2026 — in 2 days/);
   const past = evaluateCard(card('9/30/2026', {}), { fieldMeta, today });
   assert.match(timingText(past), /6 days past/);
+});
+
+test('Hand Posting cards are never flagged unless also a Calling Project', () => {
+  const st = { '61f1792a343a8d30c6b83d3a': 's1-pq' };
+  for (const ship of ['ASAP', '10/8/2026', undefined]) {
+    const r = evaluateCard(card(ship, st, ['Hand Posting']), { fieldMeta, today });
+    assert.equal(r.outcome, 'not-flagged', String(ship));
+    assert.equal(r.handPosting, true);
+  }
+  assert.equal(evaluateCard(card(undefined, st, ['Hand Posting', 'Calling Project']), { fieldMeta, today }).reason, 'no-date');
 });

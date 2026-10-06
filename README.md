@@ -14,10 +14,14 @@ It's rule-based only, using the Trello API plus date and status comparisons. **T
    - Dates inside other text, such as `Week of 10/12` or `10/8 - 10/10`
 
    If the field has more than one date (for example split shipments), any date inside the window counts. Cards with a missing or unparseable ship date (for example `TBD`) are **skipped and logged**.
-4. A card with an **Actual Ship Date** filled in has already shipped, so it's never flagged. Every other card is flagged in any of these cases:
+4. Two kinds of cards are never flagged:
+   - **Hand Posting** cards, because they aren't shipped. The exception is a card that is also a **Calling Project**, which is still checked.
+   - Cards with an **Actual Ship Date** filled in, because they've already shipped.
+
+   Every other card is flagged in any of these cases:
    - **ASAP, not shipped yet:** the ship date field says "ASAP" with no actual date. This is flagged **whatever the list status is**, because ASAP means the campaign is already past when it should have shipped.
    - **Ships within 7 days:** the card shows a "list needed" value on **Status**, **Status 2** or **Status 3**, and the ship date is between today and today + 7 days, both ends included. "Today" uses the Central time date.
-   - **Calling project with no ship date:** the card shows a "list needed" value, the ship date is blank, and the card has the **Calling Project** label. Hand-posted cards don't need a ship date, so a blank date on them is only logged.
+   - **Calling project with no ship date:** the card shows a "list needed" value, the ship date is blank, and the card has the **Calling Project** label.
 
    When there's no real ship date (blank or "ASAP"), the job estimates one as the **Start** date minus 7 days. It shows how many days until that date, or how many days past it.
 
@@ -150,6 +154,7 @@ Every run prints lines prefixed with `[shipping-list-check]`:
   - `SKIP (…)`: no usable ship date, and it isn't a case that gets flagged.
   - `PAST`: the target date already passed and the list is still needed.
   - `OK (already shipped)`: Actual Ship Date is filled in.
+  - `OK (Hand Posting — not checked)`: a hand-posted card.
   - `OK`: nothing to do.
 - `SUMMARY {…}`: one JSON line with today's date, the cards checked, flagged and skipped counts, the Trello card URL, Teams status, the Trello request count, and any errors.
 
