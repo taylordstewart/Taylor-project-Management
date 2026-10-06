@@ -38,6 +38,17 @@ It's rule-based only, using the Trello API plus date and status comparisons. **T
    - **Teams:** posts the same digest to your channel through the webhook.
 6. If nothing is flagged, it stays silent: no card and no Teams message.
 
+## Dashboard endpoint (read-only)
+
+`GET https://shippinglistcheck.netlify.app/api/flags` runs the same rules against the live board and returns the current flags as JSON. Your dashboard uses it.
+
+- **Never writes.** It doesn't post to Teams or create or update Trello cards.
+- **Uses the same Netlify environment variables** as the daily job. The Trello key and token stay on Netlify and never reach the browser.
+- **Callable from any site.** Results are cached on Netlify for 60 seconds, so a busy dashboard doesn't overload Trello.
+- **Response:** `{ asOf, today, todayLabel, cardsChecked, total, sections: [{ key, heading, items: [{ job, url, list, reason, shipText, statuses, daysOut }] }] }`.
+  - `daysOut` is positive for days until the ship date and negative for days past it.
+  - For blank or ASAP ship dates, it uses the Start − 7 estimate.
+
 ## Schedule
 
 `0 13 * * 1-5` runs Monday to Friday at 13:00 UTC. Netlify cron always runs in UTC:
@@ -54,6 +65,7 @@ If you'd rather run at 8:00am all winter and 9:00am in summer, change it to `0 1
 | Path | Purpose |
 |---|---|
 | `netlify/functions/shipping-list-check.mjs` | Netlify entry point and cron schedule |
+| `netlify/functions/shipping-flags.mjs` | Read-only `/api/flags` endpoint for the dashboard |
 | `lib/run-check.mjs` | One full run: fetch, evaluate, post |
 | `lib/shipping-check.mjs` | Pure logic: board/field/list IDs, date parsing, status matching, digest formatting |
 | `lib/trello.mjs` | Trello REST client with retry on rate limits |
