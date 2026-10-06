@@ -127,14 +127,17 @@ test('flags blank ship date only on Calling Project cards with list needed', () 
   assert.equal(evaluateCard(card(undefined, { '61f1792a343a8d30c6b83d3a': 's1-live' }, ['Calling Project']), { fieldMeta, today }).outcome, 'skipped');
 });
 
-test('flags ASAP ship date when list still needed (any card type)', () => {
+test('flags ASAP ship date when not yet shipped (any card type, any list status)', () => {
   const st = { '61f179492f9bdf409cffe64c': 's2-pq' };
   const r = evaluateCard(card('ASAP', st, ['Hand Posting']), { fieldMeta, today });
   assert.equal(r.outcome, 'flagged');
   assert.equal(r.reason, 'asap');
   assert.equal(evaluateCard(card('asap!!', st), { fieldMeta, today }).reason, 'asap');
-  // ASAP but list already in (status LIVE) -> not flagged
-  assert.equal(evaluateCard(card('ASAP', { '61f1792a343a8d30c6b83d3a': 's1-live' }), { fieldMeta, today }).outcome, 'not-flagged');
+  // ASAP with the list already in (status LIVE) is still flagged — it hasn't shipped
+  const live = evaluateCard(card('ASAP', { '61f1792a343a8d30c6b83d3a': 's1-live' }, ['Hand Posting']), { fieldMeta, today });
+  assert.equal(live.reason, 'asap');
+  assert.equal(live.neededStatuses.length, 0);
+  assert.match(buildDigest([{ job: 'FLDH-0032A', url: 'u', listName: 'L', ...live }], today).description, /list in — no Actual Ship Date yet/);
   // ASAP with a real date uses the date
   assert.equal(evaluateCard(card('ASAP - 10/20/2026', st), { fieldMeta, today }).outcome, 'not-flagged');
 });
@@ -158,7 +161,7 @@ test('digest groups flags into sections, ASAP first, window sorted by date', () 
   assert.ok(desc.indexOf('D-0004') < desc.indexOf('A-0001'));
   assert.ok(desc.indexOf('A-0001') < desc.indexOf('B-0002'));
   assert.ok(desc.indexOf('B-0002') < desc.indexOf('C-0003'));
-  assert.match(desc, /Ship date says ASAP.*\(1\)/);
+  assert.match(desc, /ASAP — not shipped yet \(1\)/);
   assert.match(desc, /Ships within 7 days \(2\)/);
   assert.match(desc, /Calling project — no ship date set \(1\)/);
   assert.match(desc, /field reads "10\/8"/);
@@ -168,7 +171,7 @@ test('digest groups flags into sections, ASAP first, window sorted by date', () 
 
 test('digest omits empty sections', () => {
   const d = buildDigest([{ job: 'A-0001', url: 'u', listName: 'L', reason: 'window', shipDay: D(10, 8), daysOut: 2, rawShip: '10/8/2026', neededStatuses: [{ field: 'Status', value: 'PQ List Needed' }] }], today);
-  assert.doesNotMatch(d.description, /\*\*Ship date says ASAP|\*\*Calling project — no ship date set/);
+  assert.doesNotMatch(d.description, /\*\*ASAP — not shipped yet|\*\*Calling project — no ship date set/);
 });
 
 test('Actual Ship Date filled = shipped, never flagged', () => {

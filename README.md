@@ -14,12 +14,10 @@ It's rule-based only, using the Trello API plus date and status comparisons. **T
    - Dates inside other text, such as `Week of 10/12` or `10/8 - 10/10`
 
    If the field has more than one date (for example split shipments), any date inside the window counts. Cards with a missing or unparseable ship date (for example `TBD`) are **skipped and logged**.
-4. Flags a card when it shows a "list needed" value on **Status**, **Status 2** or **Status 3**, **and** any one of these is true:
-   - **Ships within 7 days:** the ship date is between today and today + 7 days, both ends included. "Today" uses the Central time date.
-   - **ASAP:** the ship date field says "ASAP" with no actual date. That means the campaign is already behind its original send date.
-   - **Calling project with no ship date:** the ship date is blank and the card has the **Calling Project** label. Hand-posted cards don't need a ship date, so a blank date on them is only logged.
-
-   A card with an **Actual Ship Date** filled in has already shipped, so it's never flagged.
+4. A card with an **Actual Ship Date** filled in has already shipped, so it's never flagged. Every other card is flagged in any of these cases:
+   - **ASAP, not shipped yet:** the ship date field says "ASAP" with no actual date. This is flagged **whatever the list status is**, because ASAP means the campaign is already past when it should have shipped.
+   - **Ships within 7 days:** the card shows a "list needed" value on **Status**, **Status 2** or **Status 3**, and the ship date is between today and today + 7 days, both ends included. "Today" uses the Central time date.
+   - **Calling project with no ship date:** the card shows a "list needed" value, the ship date is blank, and the card has the **Calling Project** label. Hand-posted cards don't need a ship date, so a blank date on them is only logged.
 
    When there's no real ship date (blank or "ASAP"), the job estimates one as the **Start** date minus 7 days. It shows how many days until that date, or how many days past it.
 
