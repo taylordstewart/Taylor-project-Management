@@ -14,9 +14,10 @@ It's rule-based only, using the Trello API plus date and status comparisons. **T
    - Dates inside other text, such as `Week of 10/12` or `10/8 - 10/10`
 
    If the field has more than one date (for example split shipments), any date inside the window counts. Cards with a missing or unparseable ship date (for example `TBD`) are **skipped and logged**.
-4. Flags a card when **both** of these are true:
-   - Its ship date is between today and today + 7 days, both ends included. "Today" uses the Central time date.
-   - **Status**, **Status 2** or **Status 3** shows a "list needed" value.
+4. Flags a card when it shows a "list needed" value on **Status**, **Status 2** or **Status 3**, **and** any one of these is true:
+   - **Ships within 7 days:** the ship date is between today and today + 7 days, both ends included. "Today" uses the Central time date.
+   - **ASAP:** the ship date field says "ASAP" with no actual date. That means the campaign is already behind its original send date.
+   - **Calling project with no ship date:** the ship date is blank and the card has the **Calling Project** label. Hand-posted cards don't need a ship date, so a blank date on them is only logged.
 
    The status option text is read live from the board. A value counts as "list needed" when it contains a need word (`need`, `needs`, `needed`) and one of these: `list needed`, `pq list`, `mailer`, or `direct shipping`. Today that covers:
    - PQ List Needed
@@ -27,7 +28,7 @@ It's rule-based only, using the Trello API plus date and status comparisons. **T
 
    It does **not** match `List Match Needed`. Each run's log lists exactly which options it treated as "list needed."
 5. If one or more cards are flagged:
-   - **Trello:** creates one summary card, `Shipping list check — YYYY-MM-DD`, at the top of **📝 To Do** on *Taylor — Work Command Center*. The description lists each card's job number, ship date, how many days out, the status field and value, the list, and a link. If you re-run on the same day, it updates that day's card instead of making a duplicate.
+   - **Trello:** creates one summary card, `Shipping list check — YYYY-MM-DD`, at the top of **📝 To Do** on *Taylor — Work Command Center*. Flags are grouped into three sections: ASAP, ships within 7 days, and calling project with no ship date. The description lists each card's job number, ship date, how many days out, the status field and value, the list, and a link. If you re-run on the same day, it updates that day's card instead of making a duplicate.
    - **Teams:** posts the same digest to your channel through the webhook.
 6. If nothing is flagged, it stays silent: no card and no Teams message.
 
