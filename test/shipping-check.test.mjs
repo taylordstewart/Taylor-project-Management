@@ -11,6 +11,7 @@ import {
   todayInZone,
   countdown,
   timingText,
+  buildFlagsReport,
 } from '../lib/shipping-check.mjs';
 
 const today = dayNumber(2026, 10, 6);
@@ -222,4 +223,19 @@ test('Hand Posting cards are never flagged unless also a Calling Project', () =>
     assert.equal(r.handPosting, true);
   }
   assert.equal(evaluateCard(card(undefined, st, ['Hand Posting', 'Calling Project']), { fieldMeta, today }).reason, 'no-date');
+});
+
+test('dashboard report mirrors digest sections as plain JSON', () => {
+  const flagged = [
+    { job: 'A-0001', url: 'u1', listName: 'Kitting/Shipping', reason: 'window', shipDay: D(10, 8), daysOut: 2, rawShip: '10/8/2026', neededStatuses: [{ field: 'Status', value: 'PQ List Needed' }] },
+    { job: 'B-0002', url: 'u2', listName: 'Proof Approved', reason: 'asap', rawShip: 'ASAP', neededStatuses: [], est: { startDay: D(10, 1), estShipDay: D(9, 24), daysOut: -12 } },
+  ];
+  const r = buildFlagsReport(flagged, today, { now: new Date('2026-10-06T15:00:00Z'), cardsChecked: 72 });
+  assert.equal(r.total, 2);
+  assert.equal(r.cardsChecked, 72);
+  assert.deepEqual(r.sections.map((s) => s.key), ['asap', 'window']);
+  assert.equal(r.sections[0].items[0].daysOut, -12);
+  assert.equal(r.sections[0].items[0].statuses, 'list in — no Actual Ship Date yet');
+  assert.equal(r.sections[1].items[0].daysOut, 2);
+  assert.equal(buildFlagsReport([], today).sections.length, 0);
 });
