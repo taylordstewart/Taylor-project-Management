@@ -118,14 +118,25 @@ test('skips missing / unparseable ship dates on non-calling cards', () => {
   assert.equal(evaluateCard(card('TBD', st, ['Calling Project']), { fieldMeta, today }).reason, 'unparseable ship date');
 });
 
-test('flags blank ship date only on Calling Project cards with list needed', () => {
+test('flags blank ship date on Calling Project cards only when est. ship (Start − 7) is within 7 days or past', () => {
   const st = { '61f1792a343a8d30c6b83d3a': 's1-pq' };
-  const r = evaluateCard(card(undefined, st, ['Calling Project', 'Coffee Sleeve']), { fieldMeta, today });
+  const start = (iso) => [{ idCustomField: START, value: { date: iso } }];
+  // Start 10/13 -> est. ship 10/6 (today) -> flagged
+  const r = evaluateCard(card(undefined, st, ['Calling Project', 'Coffee Sleeve'], start('2026-10-13T17:00:00.000Z')), { fieldMeta, today });
   assert.equal(r.outcome, 'flagged');
   assert.equal(r.reason, 'no-date');
-  assert.equal(evaluateCard(card('', st, ['calling project']), { fieldMeta, today }).reason, 'no-date');
+  // Start 10/20 -> est. ship 10/13 (today + 7) -> flagged (inclusive)
+  assert.equal(evaluateCard(card('', st, ['calling project'], start('2026-10-20T17:00:00.000Z')), { fieldMeta, today }).reason, 'no-date');
+  // Start 10/1 -> est. ship 9/24 (past) -> flagged
+  assert.equal(evaluateCard(card(undefined, st, ['Calling Project'], start('2026-10-01T17:00:00.000Z')), { fieldMeta, today }).reason, 'no-date');
+  // Start 11/1 -> est. ship 10/25 (19 days out) -> not flagged
+  const far = evaluateCard(card(undefined, st, ['Calling Project'], start('2026-11-01T17:00:00.000Z')), { fieldMeta, today });
+  assert.equal(far.outcome, 'skipped');
+  assert.match(far.reason, /> 7 days out/);
+  // No Start date -> can't estimate -> not flagged
+  assert.equal(evaluateCard(card(undefined, st, ['Calling Project']), { fieldMeta, today }).outcome, 'skipped');
   // Calling project but list already confirmed -> not flagged
-  assert.equal(evaluateCard(card(undefined, { '61f1792a343a8d30c6b83d3a': 's1-live' }, ['Calling Project']), { fieldMeta, today }).outcome, 'skipped');
+  assert.equal(evaluateCard(card(undefined, { '61f1792a343a8d30c6b83d3a': 's1-live' }, ['Calling Project'], start('2026-10-08T17:00:00.000Z')), { fieldMeta, today }).outcome, 'skipped');
 });
 
 test('flags ASAP ship date when not yet shipped (any list status)', () => {
@@ -164,7 +175,7 @@ test('digest groups flags into sections, ASAP first, window sorted by date', () 
   assert.ok(desc.indexOf('B-0002') < desc.indexOf('C-0003'));
   assert.match(desc, /ASAP — not shipped yet \(1\)/);
   assert.match(desc, /Ships within 7 days \(2\)/);
-  assert.match(desc, /Calling project — no ship date set \(1\)/);
+  assert.match(desc, /Calling project — no ship date, est\. ship within 7 days \(1\)/);
   assert.match(desc, /field reads "10\/8"/);
   // title + intro + 3 headings + 4 items
   assert.equal(d.teamsPayload.attachments[0].content.body.length, 9);
@@ -172,7 +183,7 @@ test('digest groups flags into sections, ASAP first, window sorted by date', () 
 
 test('digest omits empty sections', () => {
   const d = buildDigest([{ job: 'A-0001', url: 'u', listName: 'L', reason: 'window', shipDay: D(10, 8), daysOut: 2, rawShip: '10/8/2026', neededStatuses: [{ field: 'Status', value: 'PQ List Needed' }] }], today);
-  assert.doesNotMatch(d.description, /\*\*ASAP — not shipped yet|\*\*Calling project — no ship date set/);
+  assert.doesNotMatch(d.description, /\*\*ASAP — not shipped yet|\*\*Calling project/);
 });
 
 test('Actual Ship Date filled = shipped, never flagged', () => {
@@ -198,7 +209,7 @@ test('estimated ship date = Start - 7 days, with countdown', () => {
   assert.match(d.description, /1 day past/);
 
   // Falls back to the card's own start date
-  const r2 = evaluateCard({ ...card(undefined, st, ['Calling Project']), start: '2026-10-20T12:00:00.000Z' }, { fieldMeta, today });
+  const r2 = evaluateCard({ ...card(undefined, st, ['Calling Project']), start: '2026-10-20T17:00:00.000Z' }, { fieldMeta, today });
   assert.equal(r2.reason, 'no-date');
   assert.equal(r2.est.daysOut, 7);
 });
@@ -222,7 +233,7 @@ test('Hand Posting cards are never flagged unless also a Calling Project', () =>
     assert.equal(r.outcome, 'not-flagged', String(ship));
     assert.equal(r.handPosting, true);
   }
-  assert.equal(evaluateCard(card(undefined, st, ['Hand Posting', 'Calling Project']), { fieldMeta, today }).reason, 'no-date');
+  assert.equal(evaluateCard(card(undefined, st, ['Hand Posting', 'Calling Project'], [{ idCustomField: START, value: { date: '2026-10-10T17:00:00.000Z' } }]), { fieldMeta, today }).reason, 'no-date');
 });
 
 test('dashboard report mirrors digest sections as plain JSON', () => {

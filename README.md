@@ -21,7 +21,7 @@ It's rule-based only, using the Trello API plus date and status comparisons. **T
    Every other card is flagged in any of these cases:
    - **ASAP, not shipped yet:** the ship date field says "ASAP" with no actual date. This is flagged **whatever the list status is**, because ASAP means the campaign is already past when it should have shipped.
    - **Ships within 7 days:** the card shows a "list needed" value on **Status**, **Status 2** or **Status 3**, and the ship date is between today and today + 7 days, both ends included. "Today" uses the Central time date.
-   - **Calling project with no ship date:** the card shows a "list needed" value, the ship date is blank, and the card has the **Calling Project** label.
+   - **Calling project with no ship date:** the card has the **Calling Project** label, shows a "list needed" value, and its ship date is blank. It's flagged once the estimated ship date (Start − 7 days) is **within the next 7 days or already past**. A card estimated further out is only logged, and so is a card with no Start date, because there's nothing to estimate from.
 
    When there's no real ship date (blank or "ASAP"), the job estimates one as the **Start** date minus 7 days. It shows how many days until that date, or how many days past it.
 
@@ -34,7 +34,7 @@ It's rule-based only, using the Trello API plus date and status comparisons. **T
 
    It does **not** match `List Match Needed`. Each run's log lists exactly which options it treated as "list needed."
 5. If one or more cards are flagged:
-   - **Trello:** creates one summary card, `Shipping list check — YYYY-MM-DD`, at the top of **📝 To Do** on *Taylor — Work Command Center*. Flags are grouped into three sections: ASAP, ships within 7 days, and calling project with no ship date. The description lists each card's job number, ship date, how many days out, the status field and value, the list, and a link. If you re-run on the same day, it updates that day's card instead of making a duplicate.
+   - **Trello:** creates one summary card, `Shipping list check — YYYY-MM-DD`, at the top of **📝 To Do** on *Taylor — Work Command Center*. Flags are grouped into three sections: ASAP, ships within 7 days, and calling project with no ship date (estimated ship date within 7 days). The description lists each card's job number, ship date, how many days out, the status field and value, the list, and a link. If you re-run on the same day, it updates that day's card instead of making a duplicate.
    - **Teams:** posts the same digest to your channel through the webhook.
 6. If nothing is flagged, it stays silent: no card and no Teams message.
 
