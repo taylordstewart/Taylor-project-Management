@@ -1,0 +1,7 @@
+[build]
+  # Static site stays as-is (morning.html at the repo root).
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"

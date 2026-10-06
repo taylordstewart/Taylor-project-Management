@@ -1,0 +1,15 @@
+{
+  "name": "taylor-project-management",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check:dry": "node scripts/run-local.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@netlify/functions": "^2.8.2"
+  }
+}
