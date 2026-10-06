@@ -9,6 +9,8 @@ import {
   jobNumber,
   parseShipDates,
   todayInZone,
+  countdown,
+  timingText,
 } from '../lib/shipping-check.mjs';
 
 const today = dayNumber(2026, 10, 6);
@@ -72,10 +74,13 @@ const fieldMeta = new Map([
   ['62fe59f718342a8cfefc01cf', { name: 'Status 3', options: new Map([['s3-pq', 'Needs PQ List'], ['s3-match', 'List Match Needed']]) }],
 ]);
 
-const card = (ship, statusIds = {}, labels = []) => ({
+const ACTUAL = '6a315156d1b43b9a6a13aead';
+const START = '68630012ddcfdbf550390e40';
+const card = (ship, statusIds = {}, labels = [], extra = []) => ({
   name: 'IEHP-0001',
   labels: labels.map((name) => ({ name })),
   customFieldItems: [
+    ...extra,
     ...(ship === undefined ? [] : [{ idCustomField: CONFIG.shipDateFieldId, value: { text: ship } }]),
     ...Object.entries(statusIds).map(([idCustomField, idValue]) => ({ idCustomField, idValue })),
   ],
@@ -164,4 +169,44 @@ test('digest groups flags into sections, ASAP first, window sorted by date', () 
 test('digest omits empty sections', () => {
   const d = buildDigest([{ job: 'A-0001', url: 'u', listName: 'L', reason: 'window', shipDay: D(10, 8), daysOut: 2, rawShip: '10/8/2026', neededStatuses: [{ field: 'Status', value: 'PQ List Needed' }] }], today);
   assert.doesNotMatch(d.description, /\*\*Ship date says ASAP|\*\*Calling project — no ship date set/);
+});
+
+test('Actual Ship Date filled = shipped, never flagged', () => {
+  const st = { '61f1792a343a8d30c6b83d3a': 's1-pq' };
+  const shipped = [{ idCustomField: ACTUAL, value: { date: '2026-10-05T17:00:00.000Z' } }];
+  for (const ship of ['10/8/2026', 'ASAP', undefined]) {
+    const r = evaluateCard(card(ship, st, ['Calling Project'], shipped), { fieldMeta, today });
+    assert.equal(r.outcome, 'not-flagged', String(ship));
+    assert.equal(r.shipped, true);
+  }
+});
+
+test('estimated ship date = Start - 7 days, with countdown', () => {
+  const st = { '61f1792a343a8d30c6b83d3a': 's1-pq' };
+  // Start Mon 10/12 (noon UTC) -> est. ship Mon 10/5 -> 1 day past on 10/6
+  const startItem = [{ idCustomField: START, value: { date: '2026-10-12T17:00:00.000Z' } }];
+  const r = evaluateCard(card('ASAP', st, [], startItem), { fieldMeta, today });
+  assert.equal(r.reason, 'asap');
+  assert.equal(r.est.estShipDay, D(10, 5));
+  assert.equal(r.est.daysOut, -1);
+  assert.match(timingText(r), /est\. ship Mon 10\/5\/2026 \(Start Mon 10\/12\/2026 − 7d\) — 1 day past/);
+  const d = buildDigest([{ job: 'X-1', url: 'u', listName: 'L', ...r }], today);
+  assert.match(d.description, /1 day past/);
+
+  // Falls back to the card's own start date
+  const r2 = evaluateCard({ ...card(undefined, st, ['Calling Project']), start: '2026-10-20T12:00:00.000Z' }, { fieldMeta, today });
+  assert.equal(r2.reason, 'no-date');
+  assert.equal(r2.est.daysOut, 7);
+});
+
+test('countdown wording and target countdown in timing text', () => {
+  assert.equal(countdown(0), 'today');
+  assert.equal(countdown(1), 'tomorrow');
+  assert.equal(countdown(5), 'in 5 days');
+  assert.equal(countdown(-1), '1 day past');
+  assert.equal(countdown(-3), '3 days past');
+  const r = evaluateCard(card('10/8/2026', {}), { fieldMeta, today });
+  assert.match(timingText(r), /target ship Thu 10\/8\/2026 — in 2 days/);
+  const past = evaluateCard(card('9/30/2026', {}), { fieldMeta, today });
+  assert.match(timingText(past), /6 days past/);
 });

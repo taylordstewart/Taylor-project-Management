@@ -19,6 +19,10 @@ It's rule-based only, using the Trello API plus date and status comparisons. **T
    - **ASAP:** the ship date field says "ASAP" with no actual date. That means the campaign is already behind its original send date.
    - **Calling project with no ship date:** the ship date is blank and the card has the **Calling Project** label. Hand-posted cards don't need a ship date, so a blank date on them is only logged.
 
+   A card with an **Actual Ship Date** filled in has already shipped, so it's never flagged.
+
+   When there's no real ship date (blank or "ASAP"), the job estimates one as the **Start** date minus 7 days. It shows how many days until that date, or how many days past it.
+
    The status option text is read live from the board. A value counts as "list needed" when it contains a need word (`need`, `needs`, `needed`) and one of these: `list needed`, `pq list`, `mailer`, or `direct shipping`. Today that covers:
    - PQ List Needed
    - Mailer/Shipping List Needed
@@ -143,9 +147,12 @@ Every run prints lines prefixed with `[shipping-list-check]`:
 - `Active lists found (6/6) …`: a `WARNING` appears if a list was renamed or archived.
 - `"Status 2" options treated as list-needed: …`: shows the matching rules applied to the live options.
 - `Cards to check: N (per-list counts)`
-- `FLAG JOB-0001 …`: one line per flagged card.
-- `SKIP JOB-0002 … unparseable ship date: "TBD"`: notes if the skipped card also had a list-needed status, so it doesn't fall through the cracks.
-- `INFO … already passed but still shows list-needed`: the ship date is in the past, so it's not flagged per the rules, but it's logged.
+- One line for every card, showing its target ship date countdown (for example `in 2 days` or `3 days past`), or the estimated date from Start − 7 days, plus its list status. The line starts with one of these:
+  - `FLAG (…)`: flagged, with the reason.
+  - `SKIP (…)`: no usable ship date, and it isn't a case that gets flagged.
+  - `PAST`: the target date already passed and the list is still needed.
+  - `OK (already shipped)`: Actual Ship Date is filled in.
+  - `OK`: nothing to do.
 - `SUMMARY {…}`: one JSON line with today's date, the cards checked, flagged and skipped counts, the Trello card URL, Teams status, the Trello request count, and any errors.
 
 If the Trello card or Teams post fails, the run logs the error and ends as failed, so it shows up in Netlify. A failure on one doesn't block the other.
