@@ -72,8 +72,9 @@ const fieldMeta = new Map([
   ['62fe59f718342a8cfefc01cf', { name: 'Status 3', options: new Map([['s3-pq', 'Needs PQ List'], ['s3-match', 'List Match Needed']]) }],
 ]);
 
-const card = (ship, statusIds = {}) => ({
+const card = (ship, statusIds = {}, labels = []) => ({
   name: 'IEHP-0001',
+  labels: labels.map((name) => ({ name })),
   customFieldItems: [
     ...(ship === undefined ? [] : [{ idCustomField: CONFIG.shipDateFieldId, value: { text: ship } }]),
     ...Object.entries(statusIds).map(([idCustomField, idValue]) => ({ idCustomField, idValue })),
@@ -104,9 +105,33 @@ test('does not flag when no status is list-needed', () => {
   assert.equal(r.outcome, 'not-flagged');
 });
 
-test('skips missing / unparseable ship dates', () => {
-  assert.equal(evaluateCard(card(undefined, { '61f1792a343a8d30c6b83d3a': 's1-pq' }), { fieldMeta, today }).reason, 'missing ship date');
-  assert.equal(evaluateCard(card('TBD', { '61f1792a343a8d30c6b83d3a': 's1-pq' }), { fieldMeta, today }).reason, 'unparseable ship date');
+test('skips missing / unparseable ship dates on non-calling cards', () => {
+  const st = { '61f1792a343a8d30c6b83d3a': 's1-pq' };
+  assert.equal(evaluateCard(card(undefined, st, ['Hand Posting']), { fieldMeta, today }).reason, 'missing ship date');
+  assert.equal(evaluateCard(card(undefined, st), { fieldMeta, today }).reason, 'missing ship date');
+  assert.equal(evaluateCard(card('TBD', st, ['Calling Project']), { fieldMeta, today }).reason, 'unparseable ship date');
+});
+
+test('flags blank ship date only on Calling Project cards with list needed', () => {
+  const st = { '61f1792a343a8d30c6b83d3a': 's1-pq' };
+  const r = evaluateCard(card(undefined, st, ['Calling Project', 'Coffee Sleeve']), { fieldMeta, today });
+  assert.equal(r.outcome, 'flagged');
+  assert.equal(r.reason, 'no-date');
+  assert.equal(evaluateCard(card('', st, ['calling project']), { fieldMeta, today }).reason, 'no-date');
+  // Calling project but list already confirmed -> not flagged
+  assert.equal(evaluateCard(card(undefined, { '61f1792a343a8d30c6b83d3a': 's1-live' }, ['Calling Project']), { fieldMeta, today }).outcome, 'skipped');
+});
+
+test('flags ASAP ship date when list still needed (any card type)', () => {
+  const st = { '61f179492f9bdf409cffe64c': 's2-pq' };
+  const r = evaluateCard(card('ASAP', st, ['Hand Posting']), { fieldMeta, today });
+  assert.equal(r.outcome, 'flagged');
+  assert.equal(r.reason, 'asap');
+  assert.equal(evaluateCard(card('asap!!', st), { fieldMeta, today }).reason, 'asap');
+  // ASAP but list already in (status LIVE) -> not flagged
+  assert.equal(evaluateCard(card('ASAP', { '61f1792a343a8d30c6b83d3a': 's1-live' }), { fieldMeta, today }).outcome, 'not-flagged');
+  // ASAP with a real date uses the date
+  assert.equal(evaluateCard(card('ASAP - 10/20/2026', st), { fieldMeta, today }).outcome, 'not-flagged');
 });
 
 test('job number extraction', () => {
@@ -115,15 +140,28 @@ test('job number extraction', () => {
   assert.equal(jobNumber('Some odd card'), 'Some odd card');
 });
 
-test('digest has one entry per flagged card, sorted by ship date', () => {
+test('digest groups flags into sections, ASAP first, window sorted by date', () => {
   const flagged = [
-    { job: 'B-0002', url: 'https://trello.com/c/b', listName: 'Proof Approved', shipDay: D(10, 12), daysOut: 6, rawShip: '10/12/2026', neededStatuses: [{ field: 'Status', value: 'PQ List Needed' }] },
-    { job: 'A-0001', url: 'https://trello.com/c/a', listName: 'Kitting/Shipping', shipDay: D(10, 8), daysOut: 2, rawShip: '10/8', neededStatuses: [{ field: 'Status 2', value: 'PQ/Direct Shipping Needed' }] },
+    { job: 'B-0002', url: 'https://trello.com/c/b', listName: 'Proof Approved', reason: 'window', shipDay: D(10, 12), daysOut: 6, rawShip: '10/12/2026', neededStatuses: [{ field: 'Status', value: 'PQ List Needed' }] },
+    { job: 'A-0001', url: 'https://trello.com/c/a', listName: 'Kitting/Shipping', reason: 'window', shipDay: D(10, 8), daysOut: 2, rawShip: '10/8', neededStatuses: [{ field: 'Status 2', value: 'PQ/Direct Shipping Needed' }] },
+    { job: 'C-0003', url: 'https://trello.com/c/c', listName: 'Proof Approved', reason: 'no-date', rawShip: '', neededStatuses: [{ field: 'Status', value: 'Mailer/Shipping List Needed' }] },
+    { job: 'D-0004', url: 'https://trello.com/c/d', listName: 'Proof Approved', reason: 'asap', rawShip: 'ASAP', neededStatuses: [{ field: 'Status 3', value: 'Needs PQ List' }] },
   ];
   const d = buildDigest(flagged, today);
   assert.equal(d.title, 'Shipping list check — 2026-10-06');
-  assert.ok(d.description.indexOf('A-0001') < d.description.indexOf('B-0002'));
-  assert.match(d.description, /Status 2: PQ\/Direct Shipping Needed/);
-  assert.match(d.description, /field reads "10\/8"/);
-  assert.equal(d.teamsPayload.attachments[0].content.body.length, 4);
+  const desc = d.description;
+  assert.ok(desc.indexOf('D-0004') < desc.indexOf('A-0001'));
+  assert.ok(desc.indexOf('A-0001') < desc.indexOf('B-0002'));
+  assert.ok(desc.indexOf('B-0002') < desc.indexOf('C-0003'));
+  assert.match(desc, /Ship date says ASAP.*\(1\)/);
+  assert.match(desc, /Ships within 7 days \(2\)/);
+  assert.match(desc, /Calling project — no ship date set \(1\)/);
+  assert.match(desc, /field reads "10\/8"/);
+  // title + intro + 3 headings + 4 items
+  assert.equal(d.teamsPayload.attachments[0].content.body.length, 9);
+});
+
+test('digest omits empty sections', () => {
+  const d = buildDigest([{ job: 'A-0001', url: 'u', listName: 'L', reason: 'window', shipDay: D(10, 8), daysOut: 2, rawShip: '10/8/2026', neededStatuses: [{ field: 'Status', value: 'PQ List Needed' }] }], today);
+  assert.doesNotMatch(d.description, /\*\*Ship date says ASAP|\*\*Calling project — no ship date set/);
 });
