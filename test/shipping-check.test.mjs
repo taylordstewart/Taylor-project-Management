@@ -12,6 +12,8 @@ import {
   countdown,
   timingText,
   buildFlagsReport,
+  trackedJobs,
+  sameJobs,
 } from '../lib/shipping-check.mjs';
 
 const today = dayNumber(2026, 10, 6);
@@ -249,4 +251,18 @@ test('dashboard report mirrors digest sections as plain JSON', () => {
   assert.equal(r.sections[0].items[0].statuses, 'list in — no Actual Ship Date yet');
   assert.equal(r.sections[1].items[0].daysOut, 2);
   assert.equal(buildFlagsReport([], today).sections.length, 0);
+});
+
+test('summary card records the campaigns it tracks, so unchanged sets reuse the card', () => {
+  const flagged = [
+    { job: 'IEHP-0001', url: 'u', listName: 'L', reason: 'window', shipDay: D(10, 8), daysOut: 2, rawShip: '10/8/2026', neededStatuses: [{ field: 'Status', value: 'PQ List Needed' }] },
+    { job: 'FLDH-0032A', url: 'u', listName: 'L', reason: 'asap', rawShip: 'ASAP', neededStatuses: [] },
+  ];
+  const d = buildDigest(flagged, today);
+  assert.deepEqual(d.jobs, ['FLDH-0032A', 'IEHP-0001']);
+  assert.deepEqual(trackedJobs(d.description), ['FLDH-0032A', 'IEHP-0001']);
+  assert.equal(sameJobs(trackedJobs(d.description), ['FLDH-0032A', 'IEHP-0001']), true);
+  assert.equal(sameJobs(trackedJobs(d.description), ['IEHP-0001']), false);
+  assert.equal(trackedJobs('an older card with no tracking line'), null);
+  assert.equal(sameJobs(null, ['IEHP-0001']), false);
 });

@@ -34,7 +34,7 @@ It's rule-based only, using the Trello API plus date and status comparisons. **T
 
    It does **not** match `List Match Needed`. Each run's log lists exactly which options it treated as "list needed."
 5. If one or more cards are flagged:
-   - **Trello:** creates one summary card, `Shipping list check — YYYY-MM-DD`, at the top of **📝 To Do** on *Taylor — Work Command Center*. Flags are grouped into three sections: ASAP, ships within 7 days, and calling project with no ship date (estimated ship date within 7 days). The description lists each card's job number, ship date, how many days out, the status field and value, the list, and a link. If you re-run on the same day, it updates that day's card instead of making a duplicate.
+   - **Trello:** creates one summary card, `Shipping list check — YYYY-MM-DD`, at the top of **📝 To Do** on *Taylor — Work Command Center*. Flags are grouped into three sections: ASAP, ships within 7 days, and calling project with no ship date (estimated ship date within 7 days). The description lists each card's job number, ship date, how many days out, the status field and value, the list, and a link. While the **same campaigns** stay flagged, the run updates the latest open summary card instead of making a new one. A new card is made only when the list of flagged campaigns changes. Cards in a list named Done or Complete are ignored. Each card ends with a `Campaigns tracked:` line, which is what the comparison uses.
    - **Teams:** posts the same digest to your channel through the webhook.
 6. If nothing is flagged, it stays silent: no card and no Teams message.
 
